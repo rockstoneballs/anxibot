@@ -4,7 +4,7 @@ import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
-// A short, conversational system prompt
+// A friendly, concise system prompt
 const systemPrompt = `
 You are CalmBot, a friendly, empathetic anxiety-relief assistant.  
 • Keep replies concise (1–3 sentences).  
@@ -16,33 +16,35 @@ Always be supportive and actionable.
 
 export async function POST(req: Request) {
   try {
-    const { message, history } = await req.json() as {
+    const { message, history } = (await req.json()) as {
       message: string
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // Build the OpenAI message array:
     const messages = [
       { role: 'system', content: systemPrompt },
-      // replay the prior conversation so the model knows what’s already been said
-      ...history.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      // finally, the new user input
+      ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: message },
     ]
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'o4-mini-high',
       messages,
     })
 
     return NextResponse.json({
       reply: completion.choices[0].message.content,
     })
-  } catch (err: any) {
-    console.error('⚠️ /api/chat error:', err)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  } catch (err: unknown) {
+    // Safely log errors of unknown type
+    if (err instanceof Error) {
+      console.error('⚠️ /api/chat error:', err.message)
+    } else {
+      console.error('⚠️ /api/chat error:', err)
+    }
+    return NextResponse.json(
+      { error: 'Internal error' },
+      { status: 500 }
+    )
   }
 }
