@@ -1,7 +1,6 @@
 // src/app/api/chat/route.ts
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import type { ChatCompletionMessageParam } from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
@@ -21,27 +20,23 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // Build & cast messages into the correct union type:
+    // Build your messages array
     const messages = [
       { role: 'system',  content: systemPrompt },
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user',    content: message },
-    ] as ChatCompletionMessageParam[]
+    ]
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',  // ensure you're using the exact model name
-      messages,
+      model: 'gpt-4o-mini',  
+      messages: messages as any,  // cast to any to satisfy TS
     })
 
     return NextResponse.json({
       reply: completion.choices[0].message.content,
     })
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.error('⚠️ /api/chat error:', err.message)
-    } else {
-      console.error('⚠️ /api/chat error:', err)
-    }
+    console.error('⚠️ /api/chat error:', err)
     return NextResponse.json(
       { error: 'Internal error' },
       { status: 500 }
