@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/api/chat/route.ts
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -21,12 +21,12 @@ export async function POST(req: Request) {
     }
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system',  content: systemPrompt },
       ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message },
+      { role: 'user',    content: message },
     ]
 
-    // cast to any to satisfy OpenAI client types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: messages as any,
