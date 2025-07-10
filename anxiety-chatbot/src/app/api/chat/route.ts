@@ -1,7 +1,7 @@
 // src/app/api/chat/route.ts
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import type { ChatCompletionRequestMessage } from 'openai'
+import type { ChatCompletionMessageParam } from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // Build a correctly typed messages array:
+    // Build & cast messages array into the correct union type
     const messages = [
       { role: 'system', content: systemPrompt },
       ...history.map((m) => ({
@@ -29,11 +29,11 @@ export async function POST(req: Request) {
         content: m.content,
       })),
       { role: 'user', content: message },
-    ] as unknown as ChatCompletionRequestMessage[]
+    ] as ChatCompletionMessageParam[]
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', 
-      messages,              // now typed as ChatCompletionRequestMessage[]
+      model: 'gpt-4o-mini',
+      messages,
     })
 
     return NextResponse.json({
