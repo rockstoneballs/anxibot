@@ -3,7 +3,7 @@
     "target": "es5",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
-    "skipLibCheck": true,
+    "skipLibCheck": true,                          // don’t choke on missing types in node_modules
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
@@ -21,7 +21,9 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "types/**/*.d.ts"
+    "scripts/**/*.ts",      // <-- build-index.ts lives here
+    "types/**/*.d.ts",      // <-- your pdf-parse.d.ts goes here
+    ".next/types/**/*.ts"   // <-- added by Next.js
   ],
   "exclude": ["node_modules"]
 }
