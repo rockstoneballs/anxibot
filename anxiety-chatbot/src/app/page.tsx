@@ -1,107 +1,78 @@
 // src/app/page.tsx
 'use client'
 
-import { useState } from 'react'
-import axios from 'axios'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-
-type ChatMessage = {
-  role: 'user' | 'bot'
-  text: string
-}
+import { useState, useRef, useEffect } from 'react'
 
 export default function Home() {
-  const [message, setMessage] = useState('')
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
+  const [history, setHistory] = useState<{ role: string; content: string }[]>([])
+  const [input, setInput] = useState('')
+  const endRef = useRef<HTMLDivElement>(null)
 
-  const sendMessage = async () => {
-    const trimmed = message.trim()
-    if (!trimmed) return
+  // auto-scroll on new messages
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [history])
 
-    // 1) Add the new user message to history
-    const userMsg = { role: 'user' as const, text: trimmed }
-    setChatHistory((h) => [...h, userMsg])
-    setMessage('')
+  async function send() {
+    if (!input.trim()) return
+    const userMsg = { role: 'user', content: input }
+    setHistory((h) => [...h, userMsg])
+    setInput('')
 
-    // 2) Build the payload including the full conversation so far
-    const historyPayload = [...chatHistory, userMsg].map((m) => ({
-      role: m.role === 'user' ? 'user' : 'assistant',
-      content: m.text,
-    }))
-
-    try {
-      // 3) Send both the new message and the history
-      const { data } = await axios.post('/api/chat', {
-        message: trimmed,
-        history: historyPayload,
-      })
-
-      // 4) Add the bot's reply to the chat
-      const botMsg = { role: 'bot' as const, text: data.reply }
-      setChatHistory((h) => [...h, botMsg])
-    } catch (err) {
-      console.error(err)
-      const errMsg = {
-        role: 'bot' as const,
-        text: 'Oops—something went wrong. Please try again.',
-      }
-      setChatHistory((h) => [...h, errMsg])
-    }
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: userMsg.content, history }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const { reply } = await res.json()
+    setHistory((h) => [...h, { role: 'assistant', content: reply }])
   }
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-green-50 p-4">
+    <main className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
-      <header className="w-full max-w-xl mb-4 py-4 text-center bg-white rounded-t-2xl shadow">
-        <h1 className="text-2xl font-semibold text-gray-800">🧘 CalmBot</h1>
-        <p className="text-gray-600">Your friendly assistant for anxiety relief</p>
+      <header className="flex-none p-4 bg-white shadow">
+        <h1 className="text-xl sm:text-2xl font-bold text-center">🧘 CalmBot</h1>
+        <p className="text-center text-gray-600">Your friendly assistant for anxiety relief</p>
       </header>
 
-      {/* Chat window */}
-      <div className="w-full max-w-xl flex-1 bg-white rounded-b-2xl shadow-inner overflow-y-auto p-6 space-y-3">
-        {chatHistory.map((msg, i) => (
-          <div
-            key={i}
-            className={`
-              max-w-[80%] p-3 rounded-lg shadow-sm
-              ${msg.role === 'user'
-                ? 'ml-auto bg-blue-100 text-blue-900'
-                : 'mr-auto bg-gray-100 text-gray-900'}
-            `}
-          >
-            {msg.role === 'bot' ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {msg.text}
-              </ReactMarkdown>
-            ) : (
-              <span>{msg.text}</span>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Messages area */}
+      <section className="flex-grow overflow-y-auto px-4 sm:px-8 py-4">
+        <div className="max-w-xl mx-auto space-y-3">
+          {history.map((m, i) => (
+            <div
+              key={i}
+              className={`p-3 rounded-lg ${
+                m.role === 'user'
+                  ? 'bg-blue-200 self-end text-blue-900'
+                  : 'bg-white shadow text-gray-800'
+              }`}
+            >
+              {m.content}
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
+      </section>
 
-      {/* Input area */}
-      <div className="w-full max-w-xl mt-4 flex items-center gap-2">
-        <input
-          type="text"
-          className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-black focus:outline-none focus:ring-2 focus:ring-blue-300"
-          placeholder="Type your message…"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') sendMessage()
-          }}
-          autoFocus
-        />
-        <button
-          onClick={sendMessage}
-          disabled={!message.trim()}
-          className="bg-blue-600 disabled:bg-blue-300 text-white font-medium px-6 py-2 rounded-lg transition-opacity"
-        >
-          Send
-        </button>
-      </div>
+      {/* Input bar */}
+      <footer className="flex-none bg-white p-4 shadow-inner">
+        <div className="max-w-xl mx-auto flex gap-2">
+          <input
+            className="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 text-black"
+            placeholder="Type your message…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
+          />
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
+            onClick={send}
+          >
+            Send
+          </button>
+        </div>
+      </footer>
     </main>
   )
 }
