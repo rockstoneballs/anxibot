@@ -20,23 +20,27 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // Build your messages array
     const messages = [
-      { role: 'system',  content: systemPrompt },
+      { role: 'system', content: systemPrompt },
       ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user',    content: message },
+      { role: 'user', content: message },
     ]
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',  
-      messages: messages as any,  // cast to any to satisfy TS
+      model: 'gpt-4o-mini',
+      messages: messages as any,
     })
 
     return NextResponse.json({
       reply: completion.choices[0].message.content,
     })
   } catch (err: unknown) {
-    console.error('⚠️ /api/chat error:', err)
+    if (err instanceof Error) {
+      console.error('⚠️ /api/chat error:', err.message)
+    } else {
+      console.error('⚠️ /api/chat error:', err)
+    }
     return NextResponse.json(
       { error: 'Internal error' },
       { status: 500 }
