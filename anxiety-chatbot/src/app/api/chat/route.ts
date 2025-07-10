@@ -1,4 +1,4 @@
-// src/app/api/chat/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       { role: 'user', content: message },
     ]
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // cast to any to satisfy OpenAI client types
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: messages as any,
@@ -36,11 +36,7 @@ export async function POST(req: Request) {
       reply: completion.choices[0].message.content,
     })
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.error('⚠️ /api/chat error:', err.message)
-    } else {
-      console.error('⚠️ /api/chat error:', err)
-    }
+    console.error('⚠️ /api/chat error:', err)
     return NextResponse.json(
       { error: 'Internal error' },
       { status: 500 }
