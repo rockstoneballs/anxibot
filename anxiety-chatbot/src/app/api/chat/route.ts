@@ -21,18 +21,15 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // Build & cast messages array into the correct union type
+    // Build & cast messages into the correct union type:
     const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      { role: 'user', content: message },
+      { role: 'system',  content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user',    content: message },
     ] as ChatCompletionMessageParam[]
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o-mini',  // ensure you're using the exact model name
       messages,
     })
 
