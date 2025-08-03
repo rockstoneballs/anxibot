@@ -16,12 +16,12 @@ const INDEX: IndexEntry[] = JSON.parse(
   fs.readFileSync(INDEX_PATH, 'utf-8')
 )
 
-// 2) Initialize OpenAI client
+// 2) Initialize the OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 })
 
-// 3) Cosine-similarity helper
+// 3) Cosine‐similarity helper
 function cosine(a: number[], b: number[]) {
   let dot = 0, magA = 0, magB = 0
   for (let i = 0; i < a.length; i++) {
@@ -32,12 +32,14 @@ function cosine(a: number[], b: number[]) {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB))
 }
 
-// 4) Your base system prompt
+// 4) Stronger, retrieval‐focused system prompt
 const BASE_PROMPT = `
-You are CalmBot, an empathetic assistant trained on peer-reviewed CBT research.
-Only provide anxiety-relief advice; if asked about anything else respond:
+You are CalmBot, an empathetic assistant whose answers MUST be grounded *only* in the provided CBT research excerpts.
+Always cite or paraphrase the retrieved text.  
+Do NOT fall back to any generic breathing, grounding, or relaxation techniques UNLESS they appear in the excerpts.
+If a user asks about anything outside of anxiety relief, reply:
 "I'm here to support you with anxiety—how can I help?"
-Keep answers short (1–3 sentences), warm, and actionable.
+Keep answers brief (1–3 sentences) and research‐driven.
 `.trim()
 
 export async function POST(req: Request) {
@@ -65,41 +67,40 @@ export async function POST(req: Request) {
     // 5.3) Take the top 5
     const top5 = scored.slice(0, 5)
 
-    // ───── Debug log ─────────────────────────────────────────────
+    // 5.4) Debug log in prod to confirm retrieval
     console.log(
-      '🏷️  Top 5 chunks for query:',
+      '🏷️  Top 5 chunks:',
       top5.map((c) => ({
         source: c.source,
         chunk: c.chunk,
         score: c.score.toFixed(3),
       }))
     )
-    // ───────────────────────────────────────────────────────────────
 
-    // 5.4) Build the dynamic system prompt
+    // 5.5) Build the dynamic system prompt
     const systemPrompt = [
       BASE_PROMPT,
-      'Reference excerpts from CBT research:',
+      '### Excerpts:',
       ...top5.map(
         (c) => `---\n[${c.source} – chunk ${c.chunk}]\n${c.text}`
       ),
     ].join('\n\n')
 
-    // 5.5) Call the Chat Completion endpoint
+    // 5.6) Call the Chat Completion API
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chatRes = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system',  content: systemPrompt },
+        { role: 'system', content: systemPrompt },
         ...history.map((h) => ({ role: h.role, content: h.content })),
-        { role: 'user',    content: message },
+        { role: 'user', content: message },
       ] as any,
     })
 
-    // 5.6) Null-safe extraction of the reply
-    const firstChoice = chatRes.choices?.[0]
-    const content     = firstChoice?.message?.content
-    const reply       = content ? content.trim() : 'Sorry, something went wrong.'
+    // 5.7) Null‐safe extraction of the reply
+    const first = chatRes.choices?.[0]
+    const text  = first?.message?.content
+    const reply = text?.trim() ?? "Sorry, I couldn't find a research‐driven answer."
 
     return NextResponse.json({ reply })
   } catch (err) {
