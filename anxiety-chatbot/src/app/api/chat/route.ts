@@ -14,7 +14,9 @@ const INDEX: {
 }[] = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf-8'))
 
 function cosineSim(a: number[], b: number[]) {
-  let dot = 0, na = 0, nb = 0
+  let dot = 0,
+    na = 0,
+    nb = 0
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i]
     na += a[i] * a[i]
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // 1) embed the query using the correct embedding model
+    // 1) embed the query using an embedding model
     const embedRes = await openai.embeddings.create({
       model: 'text-embedding-ada-002',
       input: message,
@@ -78,7 +80,7 @@ When you reply:
 • Speak in a warm, supportive tone.
 • Keep it brief and focused on anxiety relief techniques.
 • If the user drifts to unrelated topics, gently bring them back to their breathing or grounding.
-`
+`.trim()
 
     // 5) query the chat model
     // @ts-ignore
@@ -100,4 +102,7 @@ When you reply:
     console.error('❌ /api/chat failed:', err)
     return NextResponse.json(
       { reply: "Sorry, something went wrong. Let's try again." },
-      { status
+      { status: 500 }
+    )
+  }
+}
