@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Typewriter } from '../components/Typewriter'
+import { Typewriter } from '../../components/Typewriter'
 
 interface Message {
   role: 'user' | 'assistant'
