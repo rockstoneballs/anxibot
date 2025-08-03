@@ -1,8 +1,7 @@
-// src/app/page.tsx
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Typewriter } from '../components/typewrite'
+import { Typewriter } from '../components/Typewriter'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,7 +13,7 @@ export default function Home() {
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
-  // auto-scroll on new messages
+  // scroll on new messages
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
@@ -31,8 +30,12 @@ export default function Home() {
       body: JSON.stringify({ message: userMsg.content, history }),
     })
     const { reply } = await res.json()
-    const botMsg: Message = { role: 'assistant', content: reply }
-    setHistory((h) => [...h, botMsg])
+
+    // only add if not empty/undefined
+    if (reply) {
+      const botMsg: Message = { role: 'assistant', content: reply }
+      setHistory((h) => [...h, botMsg])
+    }
   }
 
   return (
@@ -43,7 +46,7 @@ export default function Home() {
         <p className="text-center text-gray-600">Your friendly assistant for anxiety relief</p>
       </header>
 
-      {/* Messages area */}
+      {/* Messages */}
       <section className="flex-grow overflow-y-auto px-4 sm:px-8 py-4">
         <div className="max-w-xl mx-auto space-y-3 flex flex-col">
           {history.map((m, i) => (
@@ -56,9 +59,9 @@ export default function Home() {
               }`}
             >
               {m.role === 'assistant' ? (
-                <Typewriter text={m.content} speed={30} />
+                <Typewriter text={m.content} />
               ) : (
-                m.content
+                <span>{m.content}</span>
               )}
             </div>
           ))}
@@ -66,11 +69,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Input bar */}
+      {/* Input */}
       <footer className="flex-none bg-white p-4 shadow-inner">
         <div className="max-w-xl mx-auto flex gap-2">
           <input
-            type="text"
             className="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 text-black"
             placeholder="Type your message…"
             value={input}
