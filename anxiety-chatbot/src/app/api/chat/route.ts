@@ -4,7 +4,6 @@ import OpenAI from 'openai'
 import fs from 'fs'
 import path from 'path'
 
-/** Load your pre-computed index once at cold start */
 const INDEX_PATH = path.join(process.cwd(), 'prompts', 'index.json')
 const INDEX: {
   text: string
@@ -14,9 +13,7 @@ const INDEX: {
 }[] = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf-8'))
 
 function cosineSim(a: number[], b: number[]) {
-  let dot = 0,
-    na = 0,
-    nb = 0
+  let dot = 0, na = 0, nb = 0
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i]
     na += a[i] * a[i]
@@ -36,53 +33,51 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // 1) embed the query using an embedding model
+    // 1) embed the user query
     const embedRes = await openai.embeddings.create({
       model: 'text-embedding-ada-002',
       input: message,
     })
     const qEmb = embedRes.data[0].embedding
 
-    // 2) score against all docs
+    // 2) score against index
     const scored = INDEX.map((doc) => ({
       doc,
       score: cosineSim(doc.embedding, qEmb),
     }))
-
     // 3) pick top 5
     scored.sort((a, b) => b.score - a.score)
     const top5 = scored.slice(0, 5).map((s) => s.doc)
 
     console.log(
       '🏷️  Top 5 chunks:',
-      top5.map((d) => ({
-        source: d.source,
-        chunk: d.chunk,
-        score: scored.find((x) => x.doc === d)!.score.toFixed(3),
-      }))
+      top5.map((d) => ({ source: d.source, chunk: d.chunk, score: scored.find(x => x.doc === d)!.score.toFixed(3) }))
     )
 
-    // 4) build a brief system prompt
+    // 4) build context snippets
     const excerpts = top5
       .map((d) => {
-        const snippet =
-          d.text.trim().replace(/\s+/g, ' ').slice(0, 150) + '…'
+        const snippet = d.text.trim().replace(/\s+/g, ' ').slice(0, 150) + '…'
         return `— From ${d.source} (chunk ${d.chunk}): ${snippet}`
       })
       .join('\n')
 
+    // 5) refined system prompt
     const systemPrompt = `
-You are CalmBot, a gentle, empathetic assistant guiding someone through a moment of anxiety or panic.
-Use the following CBT research snippets to inform your calming suggestions—do NOT quote them directly or mention the sources:
+You are CalmBot, a caring and flexible assistant who guides someone through anxiety or panic.
+Use the following CBT research snippets to inform your suggestions—do NOT quote them directly or mention sources:
 ${excerpts}
 
-When you reply:
-• Speak in a warm, supportive tone.
-• Keep it brief and focused on anxiety relief techniques.
-• If the user drifts to unrelated topics, gently bring them back to their breathing or grounding.
+⚡ **Important guidelines**:
+1. Open with a single, gentle breathing cue one time only.  
+2. **If the user says they don’t want breathing or “stop breathing,” immediately switch** to grounding or cognitive techniques (e.g. 5-4-3-2-1 grounding, reframing thoughts, muscle relaxation, positive affirmations).  
+3. Offer a variety of soothing strategies (grounding, gentle CBT reframing, self-compassion phrases).  
+4. Keep each reply concise (2–4 sentences), warm and empathetic.  
+5. If they ask about unrelated topics, kindly say:  
+   “I’m here to help with your anxiety—let’s focus on what’s weighing on you right now.”  
 `.trim()
 
-    // 5) query the chat model
+    // 6) call chat completion
     // @ts-ignore
     const chatRes = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -93,9 +88,8 @@ When you reply:
       ],
     })
 
-    const reply =
-      chatRes.choices?.[0]?.message?.content?.trim() ||
-      "I'm here for you—let me know how I can help."
+    const reply = chatRes.choices?.[0]?.message?.content?.trim()
+      ?? "I'm here for you—how can I best support you now?"
 
     return NextResponse.json({ reply })
   } catch (err: any) {
