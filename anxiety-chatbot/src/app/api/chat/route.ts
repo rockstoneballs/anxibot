@@ -4,30 +4,17 @@ import fs from 'fs'
 import path from 'path'
 import OpenAI from 'openai'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Load your precomputed RAG index from prompts/index.json
-// ─────────────────────────────────────────────────────────────────────────────
+// 1) Load index
 const INDEX_PATH = path.join(process.cwd(), 'prompts', 'index.json')
-type IndexEntry = {
-  text: string
-  embedding: number[]
-  source: string
-  chunk: number
-}
+type IndexEntry = { text: string; embedding: number[]; source: string; chunk: number }
 const INDEX: IndexEntry[] = JSON.parse(
   fs.readFileSync(INDEX_PATH, 'utf-8')
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Initialize your OpenAI client
-// ─────────────────────────────────────────────────────────────────────────────
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,  // ensure you have this defined
-})
+// 2) OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Cosine‐similarity helper
-// ─────────────────────────────────────────────────────────────────────────────
+// 3) Cosine‐similarity
 function cosine(a: number[], b: number[]) {
   let dot = 0, magA = 0, magB = 0
   for (let i = 0; i < a.length; i++) {
@@ -38,20 +25,14 @@ function cosine(a: number[], b: number[]) {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. System‐level prompt for CalmBot
-// ─────────────────────────────────────────────────────────────────────────────
+// 4) Base prompt
 const BASE_PROMPT = `
 You are CalmBot, an empathetic assistant trained on peer-reviewed CBT research.
-Only provide anxiety‐relief advice. If asked anything else, say:
+Only provide anxiety‐relief advice; if asked otherwise, reply:
 "I'm here to support you with anxiety—how can I help?"
-
 Keep answers short (1–3 sentences), warm, and actionable.
 `.trim()
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. POST handler
-// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
     const { message, history } = (await req.json()) as {
@@ -59,25 +40,22 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // 5.1 Embed the incoming user query
-    const embedRes = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: message,
-    })
-    const qEmbedding = embedRes.data[0].embedding
+    // 5.1) Embed user query
+    const { data: [ { embedding: qEmbedding } ] } =
+      await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: message,
+      })
 
-    // 5.2 Score each chunk, sort descending
+    // 5.2) Score & sort
     const scored = INDEX
-      .map((entry) => ({
-        ...entry,
-        score: cosine(qEmbedding, entry.embedding),
-      }))
+      .map((e) => ({ ...e, score: cosine(qEmbedding, e.embedding) }))
       .sort((a, b) => b.score - a.score)
 
-    // 5.3 Take top 5 most relevant chunks
+    // 5.3) Top 5
     const top5 = scored.slice(0, 5)
 
-    // 5.4 Build the dynamic system prompt
+    // 5.4) Build system prompt
     const systemPrompt = [
       BASE_PROMPT,
       'Reference excerpts:',
@@ -86,7 +64,7 @@ export async function POST(req: Request) {
       ),
     ].join('\n\n')
 
-    // 5.5 Call the Chat Completion API
+    // 5.5) Chat completion
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chatRes = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -97,8 +75,11 @@ export async function POST(req: Request) {
       ] as any,
     })
 
-    // 5.6 Return the assistant’s reply
-    const reply = chatRes.choices[0].message.content.trim()
+    // 5.6) Null‐safe reply extraction
+    const firstChoice = chatRes.choices?.[0]
+    const content = firstChoice?.message?.content
+    const reply = content ? content.trim() : 'Sorry, something went wrong.'
+
     return NextResponse.json({ reply })
   } catch (err) {
     console.error('❌ /api/chat error:', err)
