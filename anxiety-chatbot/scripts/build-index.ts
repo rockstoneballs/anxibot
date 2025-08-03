@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import pdfParse from 'pdf-parse'
 import OpenAI from 'openai'
+import 'dotenv/config'   // << this line loads .env into process.env
 
 // —— CONFIGURATION ——
 const PDF_DIR    = path.join(process.cwd(), 'prompts')
