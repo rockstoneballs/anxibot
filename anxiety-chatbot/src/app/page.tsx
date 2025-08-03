@@ -60,6 +60,7 @@ export default function Home() {
             >
               {m.role === 'assistant' ? (
                 <Typewriter text={m.content} />
+              <Typewriter text={m.content} speed={30} />
               ) : (
                 <span>{m.content}</span>
               )}
