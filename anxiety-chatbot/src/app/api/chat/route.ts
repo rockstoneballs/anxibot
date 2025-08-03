@@ -4,9 +4,7 @@ import OpenAI from 'openai'
 import fs from 'fs'
 import path from 'path'
 
-/**
- * Load your pre‐computed embeddings index once
- */
+/** Load your pre-computed index once at cold start */
 const INDEX_PATH = path.join(process.cwd(), 'prompts', 'index.json')
 const INDEX: {
   text: string
@@ -36,9 +34,9 @@ export async function POST(req: Request) {
       history: { role: 'user' | 'assistant'; content: string }[]
     }
 
-    // 1) embed the query
+    // 1) embed the query using the correct embedding model
     const embedRes = await openai.embeddings.create({
-      model: 'gpt-4o-mini',
+      model: 'text-embedding-ada-002',
       input: message,
     })
     const qEmb = embedRes.data[0].embedding
@@ -53,16 +51,18 @@ export async function POST(req: Request) {
     scored.sort((a, b) => b.score - a.score)
     const top5 = scored.slice(0, 5).map((s) => s.doc)
 
-    console.log('🏷️  Top 5 chunks:', top5.map((d) => ({
-      source: d.source,
-      chunk: d.chunk,
-      score: scored.find((x)=>x.doc===d)!.score.toFixed(3)
-    })))
+    console.log(
+      '🏷️  Top 5 chunks:',
+      top5.map((d) => ({
+        source: d.source,
+        chunk: d.chunk,
+        score: scored.find((x) => x.doc === d)!.score.toFixed(3),
+      }))
+    )
 
-    // 4) build a much smaller system prompt
+    // 4) build a brief system prompt
     const excerpts = top5
       .map((d) => {
-        // truncate to ~150 chars
         const snippet =
           d.text.trim().replace(/\s+/g, ' ').slice(0, 150) + '…'
         return `— From ${d.source} (chunk ${d.chunk}): ${snippet}`
@@ -71,16 +71,16 @@ export async function POST(req: Request) {
 
     const systemPrompt = `
 You are CalmBot, a gentle, empathetic assistant guiding someone through a moment of anxiety or panic.
-Use the following CBT research snippets to inform your calming suggestions—do NOT quote them directly or talk about the sources:
+Use the following CBT research snippets to inform your calming suggestions—do NOT quote them directly or mention the sources:
 ${excerpts}
 
 When you reply:
 • Speak in a warm, supportive tone.
 • Keep it brief and focused on anxiety relief techniques.
-• If the user wants to stray into unrelated topics, gently bring them back to their breathing or grounding.
+• If the user drifts to unrelated topics, gently bring them back to their breathing or grounding.
 `
 
-    // 5) query the model
+    // 5) query the chat model
     // @ts-ignore
     const chatRes = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -91,16 +91,13 @@ When you reply:
       ],
     })
 
-    const choice = chatRes.choices?.[0]?.message
-    const reply = choice?.content?.trim() ?? "I'm here for you—let me know how I can help."
+    const reply =
+      chatRes.choices?.[0]?.message?.content?.trim() ||
+      "I'm here for you—let me know how I can help."
 
     return NextResponse.json({ reply })
   } catch (err: any) {
-    // log the real error so you can inspect it in Vercel’s Function logs
     console.error('❌ /api/chat failed:', err)
     return NextResponse.json(
       { reply: "Sorry, something went wrong. Let's try again." },
-      { status: 500 }
-    )
-  }
-}
+      { status
