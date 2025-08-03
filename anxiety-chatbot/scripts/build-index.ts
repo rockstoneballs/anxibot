@@ -1,57 +1,54 @@
-// scripts/build-index.ts
 import fs from 'fs'
 import path from 'path'
 import pdfParse from 'pdf-parse'
 import OpenAI from 'openai'
 
-// CONFIG
-const PDF_PATH   = path.join(process.cwd(), 'prompts', 'combined.pdf')
-const OUT_PATH   = path.join(process.cwd(), 'prompts', 'index.json')
-const CHUNK_SIZE = 1000  // ~1k characters per chunk
+// —— CONFIGURATION ——
+const PDF_DIR    = path.join(process.cwd(), 'prompts')
+const OUT_INDEX  = path.join(PDF_DIR, 'index.json')
+const CHUNK_SIZE = 1000  // ~1k chars per chunk
 
-// Init OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
-// Helper: split text into fixed‐size chunks
-function chunkText(str: string, size = CHUNK_SIZE) {
-  const chunks = []
-  for (let i = 0; i < str.length; i += size) {
-    chunks.push(str.slice(i, i + size))
+function chunkText(text: string, size = CHUNK_SIZE): string[] {
+  const chunks: string[] = []
+  for (let i = 0; i < text.length; i += size) {
+    chunks.push(text.slice(i, i + size))
   }
   return chunks
 }
 
 async function main() {
-  // 1) Parse the PDF
-  const pdfData = await pdfParse(fs.readFileSync(PDF_PATH))
-  const rawText = pdfData.text
-  console.log(`Parsed PDF, length=${rawText.length} chars.`)
+  const files = fs.readdirSync(PDF_DIR).filter(f => f.endsWith('.pdf'))
+  const index: { text: string; embedding: number[]; source: string; chunk: number }[] = []
 
-  // 2) Chunk it
-  const texts = chunkText(rawText)
-  console.log(`Split into ${texts.length} chunks of ~${CHUNK_SIZE} chars each.`)
+  for (const file of files) {
+    console.log(`Parsing ${file}…`)
+    const buffer = fs.readFileSync(path.join(PDF_DIR, file))
+    const { text } = await pdfParse(buffer)
+    const chunks = chunkText(text)
 
-  // 3) Embed each chunk
-  const index: { text: string; embedding: number[] }[] = []
-  for (const txt of texts) {
-    const resp = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: txt,
-    })
-    index.push({
-      text: txt,
-      embedding: resp.data[0].embedding,
-    })
-    // small delay to avoid rate-limits
-    await new Promise((r) => setTimeout(r, 100))
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const resp = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: chunk,
+      })
+      index.push({
+        text: chunk,
+        embedding: resp.data[0].embedding,
+        source: file,
+        chunk: i,
+      })
+      await new Promise(r => setTimeout(r, 100))
+    }
   }
 
-  // 4) Write the index JSON
-  fs.writeFileSync(OUT_PATH, JSON.stringify(index))
-  console.log(`✅ Wrote ${index.length} embeddings to ${OUT_PATH}`)
+  fs.writeFileSync(OUT_INDEX, JSON.stringify(index, null, 2))
+  console.log(`✅ Wrote ${index.length} chunks to ${OUT_INDEX}`)
 }
 
-main().catch((e) => {
-  console.error(e)
+main().catch(err => {
+  console.error(err)
   process.exit(1)
 })
