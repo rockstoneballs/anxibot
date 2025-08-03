@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Typewriter } from '../components/typewrite'
+import { Typewriter } from '../components/Typewriter'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -13,7 +13,7 @@ export default function Home() {
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
-  // scroll on new messages
+  // auto-scroll on new messages
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
@@ -26,24 +26,22 @@ export default function Home() {
 
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: userMsg.content, history }),
+      headers: { 'Content-Type': 'application/json' },
     })
     const { reply } = await res.json()
-
-    // only add if not empty/undefined
-    if (reply) {
-      const botMsg: Message = { role: 'assistant', content: reply }
-      setHistory((h) => [...h, botMsg])
-    }
+    const botMsg: Message = { role: 'assistant', content: reply }
+    setHistory((h) => [...h, botMsg])
   }
 
   return (
     <main className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
-      <header className="flex-none p-4 bg-white shadow">
+      <header className="p-4 bg-white shadow">
         <h1 className="text-xl sm:text-2xl font-bold text-center">🧘 CalmBot</h1>
-        <p className="text-center text-gray-600">Your friendly assistant for anxiety relief</p>
+        <p className="text-center text-gray-600">
+          Your friendly assistant for anxiety relief
+        </p>
       </header>
 
       {/* Messages */}
@@ -59,10 +57,11 @@ export default function Home() {
               }`}
             >
               {m.role === 'assistant' ? (
-                <Typewriter text={m.content} />
-              <Typewriter text={m.content} speed={30} />
+                // show with typewriter effect
+                <Typewriter text={m.content} speed={10} />
               ) : (
-                <span>{m.content}</span>
+                // user messages appear immediately
+                m.content
               )}
             </div>
           ))}
@@ -71,7 +70,7 @@ export default function Home() {
       </section>
 
       {/* Input */}
-      <footer className="flex-none bg-white p-4 shadow-inner">
+      <footer className="bg-white p-4 shadow-inner">
         <div className="max-w-xl mx-auto flex gap-2">
           <input
             className="flex-grow border rounded-md px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 text-black"
